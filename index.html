@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Tracks real GDP growth, the deficit-to-GDP ratio, and U.S. oil and gas production against Scott Bessent's 3-3-3 targets.">
+<title>Bessent 3-3-3 Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;600&family=Neuton:wght@400&display=swap">
+<style>
+/* Layout: a dark masthead, then three stacked indicator rows. Each row reads left to right:
+   headline figure and progress against the target, then one chart. */
+:root {
+  --bg: #edf1f2; --surface: #ffffff; --ink: #0c2a30; --ink-2: #44666c; --rule: #d0dbdd;
+  --mast: #0c2a30; --mast-ink: #ffffff; --mast-sub: #b7f6fc;
+  --series: #348397; --series-strong: #194852; --series-soft: #cfe3e8;
+  --target: #8d381c; --base: #78a0a3; --good: #4f6d1a; --track: #dfe7e9;
+  --display: "Neuton", Georgia, "Times New Roman", serif;
+  --body: "Hanken Grotesk", Inter, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #08201f; --surface: #0f2f35; --ink: #edf1f2; --ink-2: #9dbcc0; --rule: #24484f;
+  --mast: #061a1d; --mast-ink: #ffffff; --mast-sub: #b7f6fc;
+  --series: #7dceda; --series-strong: #b7f6fc; --series-soft: #1f4c55;
+  --target: #f17d3a; --base: #78a0a3; --good: #b1d955; --track: #1b3f46; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #08201f; --surface: #0f2f35; --ink: #edf1f2; --ink-2: #9dbcc0; --rule: #24484f;
+  --mast: #061a1d; --mast-ink: #ffffff; --mast-sub: #b7f6fc;
+  --series: #7dceda; --series-strong: #b7f6fc; --series-soft: #1f4c55;
+  --target: #f17d3a; --base: #78a0a3; --good: #b1d955; --track: #1b3f46; color-scheme: dark }
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-weight: 300; font-size: 16px; line-height: 1.5; }
+.mast { background: var(--mast); color: var(--mast-ink); padding: 40px 16px 32px; }
+.wrap { max-width: 960px; margin: 0 auto; }
+.mast h1 { font-family: var(--display); font-weight: 400; font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; margin: 0 0 8px; text-wrap: balance; }
+.mast p { margin: 0; color: var(--mast-sub); max-width: 60ch; }
+.stamp { margin-top: 16px; font-size: 0.8125rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--mast-sub); opacity: 0.85; }
+main { padding: 24px 16px 48px; }
+main .wrap { display: flex; flex-direction: column; gap: 16px; }
+.row { background: var(--surface); border: 1px solid var(--rule); padding: 24px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; }
+.eyebrow { font-weight: 600; font-size: 0.8125rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 8px; }
+.big { font-family: var(--display); font-size: 3.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.big small { font-family: var(--body); font-weight: 300; font-size: 1rem; color: var(--ink-2); margin-left: 4px; }
+.as-of { color: var(--ink-2); font-size: 0.875rem; margin: 4px 0 16px; }
+.status { font-weight: 600; font-size: 0.9375rem; margin: 0 0 8px; }
+.status.met { color: var(--good); }
+.meter { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--series); border-radius: 4px; }
+.ends { display: flex; justify-content: space-between; font-size: 0.8125rem; color: var(--ink-2); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.def { font-size: 0.875rem; color: var(--ink-2); margin: 16px 0 0; }
+.plot { position: relative; min-width: 0; }
+.plot h2 { font-weight: 600; font-size: 0.9375rem; margin: 0 0 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8125rem; color: var(--ink-2); margin-bottom: 4px; }
+.legend span::before { content: ""; display: inline-block; width: 14px; margin-right: 6px; vertical-align: middle; border-top: 2px solid var(--series); }
+.legend .t::before { border-top: 2px dashed var(--target); }
+.legend .b::before { border-top: 2px dotted var(--base); }
+svg { display: block; width: 100%; height: 240px; }
+svg text { font-family: var(--body); font-size: 12px; fill: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tip { position: absolute; pointer-events: none; background: var(--mast); color: #ffffff; font-size: 0.8125rem; padding: 6px 10px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -100%); }
+.tip b { font-weight: 600; }
+details { margin-top: 8px; font-size: 0.8125rem; color: var(--ink-2); }
+summary { cursor: pointer; }
+summary:focus-visible, a:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+.tbl { max-height: 220px; overflow: auto; margin-top: 8px; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 2px 12px 2px 0; font-weight: 300; }
+th { font-weight: 600; }
+td:first-child, th:first-child { text-align: left; }
+.empty { background: var(--surface); border: 1px solid var(--rule); padding: 32px 24px; color: var(--ink-2); }
+footer { font-size: 0.875rem; color: var(--ink-2); max-width: 75ch; }
+footer p { margin: 8px 0 0; }
+a { color: var(--series); text-decoration: none; }
+a:hover { text-decoration: underline; }
+@media (max-width: 720px) { .row { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 20px 16px; } .big { font-size: 3rem; } }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="mast"><div class="wrap">
+  <h1>The 3-3-3 Tracker</h1>
+  <p>Treasury Secretary Scott Bessent set three goals for 2028: 3 percent real growth, a deficit of 3 percent of GDP, and 3 million more barrels of oil equivalent a day. This page measures each against public data.</p>
+  <div class="stamp" id="stamp">Loading data</div>
+</div></header>
+
+<main><div class="wrap">
+  <div id="rows"><div class="empty" id="empty">Loading the latest figures. Each indicator will show its current value, its distance from the target, and its history since 2022.</div></div>
+  <footer>
+    <p><b style="font-weight:600">Sources.</b> Real GDP: <a href="https://fred.stlouisfed.org/series/A191RL1Q225SBEA">Bureau of Economic Analysis via FRED</a>. Deficit: <a href="https://fred.stlouisfed.org/series/MTSDS133FMS">Monthly Treasury Statement via FRED</a>, divided by <a href="https://fred.stlouisfed.org/series/GDP">nominal GDP</a>. Energy: Energy Information Administration monthly <a href="https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=MCRFPUS2&f=M">crude oil</a>, <a href="https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=MNGFPUS2&f=M">natural gas plant liquids</a>, and <a href="https://www.eia.gov/dnav/ng/hist/n9070us2m.htm">dry natural gas</a> production.</p>
+    <p><b style="font-weight:600">Method.</b> The deficit is the sum of the latest 12 monthly balances over the most recent quarterly nominal GDP. Natural gas converts at 6 thousand cubic feet per barrel of oil equivalent. The energy baseline is the 2024 average; the deficit baseline is January 2025.</p>
+  </footer>
+</div></main>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+const h = (tag, cls, text, parent) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; if (parent) parent.appendChild(n); return n; };
+const monthLabel = p => MON[+p.slice(5, 7) - 1] + " " + p.slice(0, 4);
+const yearOf = p => p.slice(0, 4);
+
+function chart(host, cfg) {
+  const svg = el("svg", { role: "img", "aria-label": cfg.title }, host);
+  const tip = h("div", "tip", null, host); tip.hidden = true;
+  function draw() {
+    const W = Math.max(280, svg.clientWidth), H = 240, m = { l: 40, r: 12, t: 12, b: 26 };
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const pts = cfg.points, n = pts.length, [y0, y1] = cfg.domain;
+    const pw = W - m.l - m.r, ph = H - m.t - m.b, band = pw / n;
+    const x = i => m.l + band * (i + 0.5), y = v => m.t + ph * (1 - (v - y0) / (y1 - y0));
+    for (let v = y0; v <= y1 + 1e-9; v += cfg.step) {
+      el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "var(--rule)", "stroke-width": v === 0 ? 1.5 : 1 }, svg);
+      el("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = cfg.tick(v);
+    }
+    let lastYear = "";
+    pts.forEach((p, i) => { const yr = yearOf(p.p); if (yr !== lastYear && (i > 0 || cfg.bars)) { el("text", { x: cfg.bars ? x(i) - band * 0.4 : x(i), y: H - 6, "text-anchor": cfg.bars ? "start" : "middle" }, svg).textContent = yr; } lastYear = yr; });
+    const ref = (v, color, dash) => el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: color, "stroke-width": 2, "stroke-dasharray": dash }, svg);
+    if (cfg.baseline != null) ref(cfg.baseline, "var(--base)", "2 4");
+    if (cfg.bars) {
+      const bw = Math.max(3, band - 2);
+      pts.forEach((p, i) => { const a = y(Math.max(0, p.v)), b = y(Math.min(0, p.v)); el("rect", { x: x(i) - bw / 2, y: a, width: bw, height: Math.max(1, b - a), rx: 2, fill: i === n - 1 ? "var(--series-strong)" : "var(--series)" }, svg); });
+    } else {
+      el("path", { d: pts.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1)).join(""), fill: "none", stroke: "var(--series)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+      el("circle", { cx: x(n - 1), cy: y(pts[n - 1].v), r: 4.5, fill: "var(--series-strong)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+    }
+    ref(cfg.target, "var(--target)", "6 4");
+    const guide = el("line", { y1: m.t, y2: m.t + ph, stroke: "var(--ink-2)", "stroke-width": 1, visibility: "hidden" }, svg);
+    const dot = el("circle", { r: 4.5, fill: "var(--series-strong)", stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg);
+    const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, fill: "transparent" }, svg);
+    const move = e => {
+      const r = svg.getBoundingClientRect(), i = Math.min(n - 1, Math.max(0, Math.floor((e.clientX - r.left - m.l) / band)));
+      const p = pts[i];
+      guide.setAttribute("x1", x(i)); guide.setAttribute("x2", x(i)); guide.setAttribute("visibility", "visible");
+      if (!cfg.bars) { dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p.v)); dot.setAttribute("visibility", "visible"); }
+      tip.textContent = ""; h("b", null, cfg.fmt(p.v), tip); tip.append(" " + cfg.label(p.p));
+      tip.hidden = false;
+      const half = tip.offsetWidth / 2, left = Math.min(W - half, Math.max(half, x(i)));
+      tip.style.left = left + "px"; tip.style.top = (svg.offsetTop + y(Math.max(p.v, 0)) - 10) + "px";
+    };
+    const out = () => { tip.hidden = true; guide.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); };
+    hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move); hit.addEventListener("pointerleave", out);
+  }
+  draw();
+  new ResizeObserver(draw).observe(svg);
+}
+
+function row(parent, c) {
+  const sec = h("section", "row", null, parent);
+  const left = h("div", null, null, sec);
+  h("p", "eyebrow", c.eyebrow, left);
+  const big = h("div", "big", c.value, left); h("small", null, c.unit, big);
+  h("p", "as-of", c.asOf, left);
+  h("p", "status" + (c.met ? " met" : ""), c.status, left);
+  const meter = h("div", "meter", null, left); meter.setAttribute("role", "img"); meter.setAttribute("aria-label", c.status);
+  h("i", null, null, meter).style.width = Math.round(100 * Math.min(1, Math.max(0.02, c.progress))) + "%";
+  const ends = h("div", "ends", null, left); h("span", null, c.from, ends); h("span", null, c.to, ends);
+  h("p", "def", c.def, left);
+  const plot = h("div", "plot", null, sec);
+  h("h2", null, c.chart.title, plot);
+  const lg = h("div", "legend", null, plot);
+  h("span", null, c.seriesName, lg); h("span", "t", c.targetName, lg); if (c.chart.baseline != null) h("span", "b", c.baseName, lg);
+  chart(plot, c.chart);
+  const d = h("details", null, null, plot); h("summary", null, "Show data table", d);
+  const t = h("table", null, null, h("div", "tbl", null, d));
+  const hr = h("tr", null, null, t); h("th", null, "Period", hr); h("th", null, c.seriesName, hr);
+  c.chart.points.slice().reverse().forEach(p => { const r = h("tr", null, null, t); h("td", null, c.chart.label(p.p), r); h("td", null, c.chart.fmt(p.v), r); });
+}
+
+function render(d) {
+  const rows = document.getElementById("rows");
+  rows.textContent = ""; rows.style.cssText = "display:flex;flex-direction:column;gap:16px";
+  const up = new Date(d.updated);
+  document.getElementById("stamp").textContent = "Data refreshed " + (isNaN(up) ? d.updated : up.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+  const pct = v => v.toFixed(1) + "%";
+
+  const g = d.gdp[d.gdp.length - 1], gGap = g.saar - 3;
+  row(rows, {
+    eyebrow: "Real GDP growth", value: g.saar.toFixed(1), unit: "% annualized", asOf: g.p + (g.yoy != null ? ", or " + g.yoy.toFixed(1) + "% from a year earlier" : ""),
+    met: gGap >= 0, status: gGap >= 0 ? "At or above the 3% target" : Math.abs(gGap).toFixed(1) + " points below the 3% target",
+    progress: g.saar / 3, from: "0%", to: "Target 3%",
+    def: "Quarterly change in inflation-adjusted GDP, at a seasonally adjusted annual rate. Each quarter is revised twice after its first estimate.",
+    seriesName: "Real GDP growth", targetName: "3% target",
+    chart: { title: "Quarterly real GDP growth, annualized", bars: true, points: d.gdp.map(q => ({ p: q.p, v: q.saar })), target: 3, domain: [-2, 6], step: 2, tick: v => v + "%", fmt: pct, label: p => p }
+  });
+
+  const f = d.deficit[d.deficit.length - 1], f0 = (d.deficit.find(x => x.p === "2025-01") || d.deficit[0]).pct;
+  const fMax = Math.ceil(Math.max(...d.deficit.map(x => x.pct)) / 2) * 2;
+  row(rows, {
+    eyebrow: "Budget deficit to GDP", value: f.pct.toFixed(1), unit: "% of GDP", asOf: "12 months through " + monthLabel(f.p) + ", $" + (f.t12 / 1000).toFixed(2) + " trillion",
+    met: f.pct <= 3, status: f.pct <= 3 ? "At or below the 3% target" : (f.pct - 3).toFixed(1) + " points above the 3% target",
+    progress: (f0 - f.pct) / (f0 - 3), from: "Jan 2025: " + pct(f0), to: "Target 3%",
+    def: "Federal deficit over the trailing 12 months, as a share of nominal GDP. Monthly timing shifts in payments can move this figure.",
+    seriesName: "Trailing 12-month deficit", targetName: "3% target", baseName: "January 2025",
+    chart: { title: "Federal deficit, trailing 12 months, share of GDP", points: d.deficit.map(x => ({ p: x.p, v: x.pct })), target: 3, baseline: f0, domain: [2, Math.max(8, fMax)], step: 2, tick: v => v + "%", fmt: pct, label: monthLabel }
+  });
+
+  const e = d.energy[d.energy.length - 1], b = d.energyBaseline / 1000, cur = e.boe / 1000, gain = cur - b, tgt = b + 3;
+  const vals = d.energy.map(x => x.boe / 1000), lo = Math.floor(Math.min(...vals, b) / 2) * 2, hi = Math.ceil(Math.max(...vals, tgt) / 2) * 2;
+  const mb = v => v.toFixed(1) + "M";
+  row(rows, {
+    eyebrow: "Oil and gas production", value: cur.toFixed(1), unit: "million boe/day", asOf: monthLabel(e.p) + ": crude " + (e.crude / 1000).toFixed(1) + ", gas liquids " + (e.ngpl / 1000).toFixed(1) + ", natural gas " + (e.gas / 1000).toFixed(1),
+    met: gain >= 3, status: (gain >= 0 ? "+" : "") + gain.toFixed(1) + " million boe/day against the 2024 average" + (gain >= 3 ? ", target met" : ""),
+    progress: gain / 3, from: "2024: " + mb(b), to: "Target " + mb(tgt),
+    def: "Crude oil, natural gas plant liquids, and dry natural gas, in barrels of oil equivalent (boe) per day. Final monthly figures arrive about two months late.",
+    seriesName: "Production", targetName: "+3M target", baseName: "2024 average",
+    chart: { title: "U.S. oil and gas production, million boe per day", points: d.energy.map(x => ({ p: x.p, v: x.boe / 1000 })), target: tgt, baseline: b, domain: [lo, hi], step: 2, tick: v => v, fmt: v => v.toFixed(2) + "M boe/day", label: monthLabel }
+  });
+}
+
+(async () => {
+  const empty = document.getElementById("empty"), stamp = document.getElementById("stamp");
+  try {
+    const r = await fetch("data.json", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) { stamp.textContent = "Data unavailable"; empty.textContent = "The figures could not be loaded. Try reloading this page."; }
+})();
+</script>
+</body>
+</html>
